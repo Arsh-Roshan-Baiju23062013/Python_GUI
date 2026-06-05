@@ -49,14 +49,24 @@ def launch_main_chat_screen():
         img = img.resize((30, 30))
         icon = ImageTk.PhotoImage(img)
         Icon_label = tk.Label(screen_1, bg="DeepSkyBlue2", image=icon)
-        # Keep a reference to prevent garbage collection
+
         Icon_label.image = icon 
         Icon_label.pack(pady=1)
     except Exception:
         pass
+    frame_chats = tk.Frame(screen_1, bg="dark green", width=200)
+    frame_chats.pack(side="left", expand=True, fill="y", padx=10, pady=10)
+    frame_chats.pack_propagate(False)
+    title_chat_history=tk.Label(
+        frame_chats,
+        text="Chat History",
+        fg="white",
+        font=("Times New Roman", 24, "bold")
+    )
+    title_chat_history.pack(padx=10, pady=10)
 
-    frame_1 = tk.Frame(screen_1, bg="DeepSkyBlue3")
-    frame_1.pack(fill="x")
+    frame_1 = tk.Frame(screen_1, bg="DeepSkyBlue3", width=450)
+    frame_1.pack(side="left", expand=True, fill="both")
 
     title = tk.Label(
         frame_1,
@@ -67,7 +77,7 @@ def launch_main_chat_screen():
     )
     title.pack()
 
-    output_frame = tk.Frame(screen_1, bg="DeepSkyBlue2", height=200)
+    output_frame = tk.Frame(frame_1, bg="DeepSkyBlue2", height=200)
     output_frame.pack(fill="x", padx=20, pady=10)
 
     output_text = scrolledtext.ScrolledText(
@@ -79,7 +89,7 @@ def launch_main_chat_screen():
     )
     output_text.pack(fill="x")
 
-    input_frame = tk.Frame(screen_1, bg="DeepSkyBlue2")
+    input_frame = tk.Frame(frame_1, bg="DeepSkyBlue2")
     input_frame.pack(side="bottom", fill="x", pady=10)
 
     Input = tk.Entry(
@@ -108,7 +118,6 @@ def launch_main_chat_screen():
             output_text.yview(tk.END)
             print(reply) 
             Input.delete(0, tk.END)
-
     def clear_chat():
         output_text.config(state="normal")
         output_text.delete(1.0, tk.END)
