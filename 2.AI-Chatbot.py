@@ -5,25 +5,20 @@ import hashlib
 import json
 import os
 
-# ── Constants ──────────────────────────────────────────────────────────────────
 USER_DB_FILE = "user_db.json"
-API_KEY      = ""          # ← paste your Gemini API key here
+API_KEY      = ""
 
-# ── Gemini setup ───────────────────────────────────────────────────────────────
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-3.5-flash")   # FIX #1: was "gemini-3.5-flash" (invalid)
+model = genai.GenerativeModel("gemini-2.5-flash")   
 
-# ── Globals ────────────────────────────────────────────────────────────────────
 username        = ""
-chats_data      = {}        # chat_id → display string
-chat_sessions   = {}        # chat_id → genai ChatSession   FIX #2: per-chat memory
+chats_data      = {}        
+chat_sessions   = {}       
 current_chat_id = None
 
-# ── Password hashing ───────────────────────────────────────────────────────────
-def hash_password(pw: str) -> str:           # FIX #3: no plaintext passwords
+def hash_password(pw: str) -> str:           
     return hashlib.sha256(pw.encode()).hexdigest()
 
-# ── Persistent user DB ─────────────────────────────────────────────────────────
 def load_user_database():
     if os.path.exists(USER_DB_FILE):
         try:
@@ -42,9 +37,6 @@ def save_user_database(database):
 
 user_database = load_user_database()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  AUTH SCREEN
-# ══════════════════════════════════════════════════════════════════════════════
 def sign_up():
     username_input = auth_user_entry.get().strip()
     password_input = auth_pass_entry.get().strip()
@@ -78,9 +70,6 @@ def sign_in():
         messagebox.showerror("Access Denied", "Invalid username or password.")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  MAIN CHAT SCREEN
-# ══════════════════════════════════════════════════════════════════════════════
 def launch_main_chat_screen():
     global Input, output_text, history_listbox, chats_data, current_chat_id
 
@@ -88,8 +77,6 @@ def launch_main_chat_screen():
     screen_1.title("RoshanAI")
     screen_1.geometry("950x650")
     screen_1.config(background="DeepSkyBlue2")
-
-    # ── Sidebar ────────────────────────────────────────────────────────────────
     frame_chats = tk.Frame(screen_1, bg="dark green", width=250)
     frame_chats.pack(side="left", fill="y", padx=10, pady=10)
     frame_chats.pack_propagate(False)
@@ -104,7 +91,7 @@ def launch_main_chat_screen():
 
     history_listbox = tk.Listbox(
         history_container,
-        bg="dark green",            # FIX #4: "emerald green" is not a valid tkinter colour
+        bg="dark green",            
         fg="white",
         selectbackground="green yellow",
         selectforeground="black",
@@ -120,7 +107,6 @@ def launch_main_chat_screen():
     sidebar_btn_frame = tk.Frame(frame_chats, bg="dark green")
     sidebar_btn_frame.pack(fill="x", side="bottom", pady=15)
 
-    # ── Sidebar helpers ────────────────────────────────────────────────────────
     def load_selected_chat(event=None):
         global current_chat_id
         selection = history_listbox.curselection()
@@ -176,7 +162,6 @@ def launch_main_chat_screen():
         font=("Arial", 10, "bold"), width=10, command=delete_selected_chat
     ).pack(side="right", padx=10, expand=True)
 
-    # ── Main chat area ─────────────────────────────────────────────────────────
     frame_1 = tk.Frame(screen_1, bg="DeepSkyBlue3", width=450)
     frame_1.pack(side="left", expand=True, fill="both")
 
@@ -203,7 +188,6 @@ def launch_main_chat_screen():
     )
     Input.pack(side="left", padx=(30, 10), ipady=5)
 
-    # ── Message send / clear ───────────────────────────────────────────────────
     def send_message():
         global current_chat_id
         if current_chat_id is None:
@@ -215,7 +199,6 @@ def launch_main_chat_screen():
 
         output_text.config(state="normal")
         try:
-            # FIX #2: use the per-chat session so AI remembers prior turns
             reply = chat_sessions[current_chat_id].send_message(message).text
         except Exception as e:
             reply = f"Error: {e}"
@@ -234,7 +217,7 @@ def launch_main_chat_screen():
         output_text.config(state="disabled")
         if current_chat_id:
             chats_data[current_chat_id]    = ""
-            chat_sessions[current_chat_id] = model.start_chat(history=[])  # also reset AI memory
+            chat_sessions[current_chat_id] = model.start_chat(history=[]) 
 
     tk.Button(
         input_frame, text="SEND", bg="ivory2", activebackground="ivory4",
@@ -252,9 +235,6 @@ def launch_main_chat_screen():
     screen_1.mainloop()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  ENTRY POINT  —  Auth window  (FIX #5: was empty, no widgets at all)
-# ══════════════════════════════════════════════════════════════════════════════
 screen_auth = tk.Tk()
 screen_auth.title("RoshanAI - Authentication")
 screen_auth.geometry("400x300")
