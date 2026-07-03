@@ -4,12 +4,49 @@ import google.generativeai as genai
 import hashlib
 import json
 import os
+import datetime
+import socket
+import threading
+import webbrowser
+import http.server
+import urllib.parse
+import requests
 
-USER_DB_FILE = "user_db.json"
-API_KEY      = ""
+#paths
+script_direct=os.path.dirname(os.path.abspath(__file__))
+config_file=os.path.join(script_direct, "config.json")
+USER_DB_FILE = os.path.join(script_direct, "user_db.json" )
+print(script_direct)
+default_config={
+    "geminiAPIKey": "",
+  "firebaseApiKey": "",
+  "projectId": "",
+  "firebasedatabaseURL": "",
+  "googleClientId": "",
+  "googleClientSecret": "",
+  "geminimodel": "gemini-2.5-flash"    
+}
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-2.5-flash")   
+def load_config():
+    global model
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                data = json.load(f)
+                # Update default_config with the data read from config.json
+                default_config.update(data)
+        except Exception as e:
+            messagebox.showerror("Config Error", f"Could not read config file: {e}")
+            return
+
+    api_key = default_config.get("geminiAPIKey")
+    model_name = default_config.get("geminimodel", "gemini-2.5-flash")
+
+    if api_key:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+    else:
+        messagebox.showwarning("API Key Missing", "Gemini API Key not found in configuration.")
 
 username        = ""
 chats_data      = {}        
@@ -68,6 +105,7 @@ def sign_in():
         launch_main_chat_screen()
     else:
         messagebox.showerror("Access Denied", "Invalid username or password.")
+
 
 
 def launch_main_chat_screen():
@@ -260,8 +298,15 @@ tk.Button(btn_frame, text="Sign In", command=sign_in,
           font=("Arial", 11, "bold"), bg="green yellow", width=10).pack(side="left", padx=10)
 tk.Button(btn_frame, text="Sign Up", command=sign_up,
           font=("Arial", 11, "bold"), bg="ivory2", width=10).pack(side="left", padx=10)
+tk.Button(btn_frame, text="Sign In with Google", command=sign_in,
+          font=("Arial", 11, "bold"), bg="green2", width=20).pack(padx=10)
 
-# Allow Enter key to sign in from the auth screen
+
+load_config()
+
+
+user_database = load_user_database()
+
 auth_pass_entry.bind("<Return>", lambda e: sign_in())
 
 screen_auth.mainloop()
