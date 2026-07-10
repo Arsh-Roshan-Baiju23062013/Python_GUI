@@ -71,6 +71,192 @@ def save_user_database(database):
             json.dump(database, f, indent=4)
     except Exception as e:
         messagebox.showerror("Database Error", f"Could not save user data: {e}")
+class FirebaseClient:
+    def __init__(self, api_key, project_id, database_url=None):
+        self.api_key=api_key
+        self.project_id=project_id
+        self.database_url=database_url or f"https://{project_id}-default-rtdb.firebaseio.com"
+        if not self.database_url.endswith("/"):
+            self.database_url+="/"
+        self.id_token=None
+        self.local_id=None
+        self.email=None
+    def is_configured(self):
+        return bool(self.api_key and self.project_id)
+    def sign_up(self, email, password):
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={self.api_key}"
+        payload={"email": email,
+                 "password":password,
+                 "returnSecureToken": True}
+        r=requests.post(url, json=payload)
+        r.raise_for_status()
+        data=r.json()
+        self.id_token = data["idToken"]
+        self.local_id=data["localId"]
+        self.email=data["email"]
+        return data
+    def sign_in(self, email, password):
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={self.api_key}"
+        payload={"email": email,
+                 "password":password,
+                 "returnSecureToken": True}
+        r=requests.post(url, json=payload)
+        r.raise_for_status()
+        data=r.json()
+        self.id_token = data["idToken"]
+        self.local_id=data["localId"]
+        self.email=data["email"]
+        return data
+    def sign_in_with_google_token(self, google_id_token, redirect_port):
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdP?key={self.api_key}"
+        payload = {
+            "postBody": f"id_token={google_id_token}&providerId=google.com",
+            "requestUri": f"http://localhost:{redirect_port}",
+            "returnSecureToken": True
+        }
+        r=requests.post(url, json=payload)
+        r.raise_for_status()
+        data=r.json()
+        self.id_token = data["idToken"]
+        self.local_id=data["localId"]
+        self.email=data["email"]
+        return data    
+    def load_chats(self):
+        url = f"{self.database_url}users/{self.local_id}/chats.json?auth={self.id_token}"
+        r=requests.get(url)
+        r.raise_for_status()
+        return r.json() or{}
+    def create_chat(self, chat_id, title, created_at):
+        url = f"{self.database_url}users/{self.local_id}/chats/{chat_id}/metadata.json?auth={self.id_token}"
+        payload={
+            "title": title,
+            "created_at":created_at
+        }
+        r=requests.put(url, json=payload)
+        r.raise_for_status()
+    def append_message(self, chat_id, sender, message, timestamp):
+        url = f"{self.database_url}users/{self.local_id}/chats/{chat_id}/messages.json?auth={self.id_token}"
+        payload={
+            "sender": sender,
+            "message":message,
+            "timestamp":timestamp
+                          }
+        r=requests.post(url, json=payload)
+        r.raise_for_status()
+    def delete_chat(self, chat_id):
+        url = f"{self.database_url}users/{self.local_id}/chats/{chat_id}.json?auth={self.id_token}"
+        r=requests.delete(url)
+        r.raise_for_status()
+
+#Google OAuth Loopback -> 
+
+class OAuthCallBackHandler(http.server.BaseH11PRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        query=urllib.parse.urlparse(self.path).query
+        params=urllib.parse.parse_qs(query)
+        if "code" in params:
+            self.server.auth_code = params["code"][0]
+            self.wfile.write(b"<html><body style='font-family:sans-serif;text-align:center;padding-top:50px;'>"
+                             b"<h1>RoshanAI Authentication Successful!</h1>"
+                             b"<p>You can close this tab and return to the application.</p>"
+                             b"</body></html>")
+        else:
+            self.wfile.write(b"<html><body style='font-family:sans-serif;text-align:center;padding-top:50px;'>"
+                             b"<h1>Authentication Failed</h1>"
+                             b"<p>Authorization code not found.</p>"
+                             b"</body></html>")
+    def log_message(self, format, *args):
+        pass
+def find_free_port():
+    s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("localhost", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+class StorageManager:
+    def __init__(self, local_username=None, firebase_client=None):
+        self.local_username=local_username
+        self.firebase_client=firebase_client
+        self.is_firebase=firebase_client is not None
+
+    def get_display_name(self):
+        if self.is_firebase:
+            return self.firebase_client.email or "Cloud User"
+        return self.local_username
+    def load_chats(self):
+        if self.is_firebase:
+            try:
+                return self.firebase_client.load_chats()
+            except Exception as e:
+                messagebox.showerror("Error", f"FAILED TO LOAD CHATS FROM FIREBAE: {e}")
+                return{}
+        else:
+            local_file = os.path.join(LOCAL_CHATS_DIR, f"{self.local_username}_chats.json")
+            if os.path.exists(local_file):
+                try:
+                    with open(local_file, "r") as f:
+                        return json.load(f)
+                except Exception:
+                    return{}
+                return{}
+    def save_local_chats(self, chats):
+        if not self.is_firebase:
+            local_file=os.path.join(LOCAL_CHATS_DIR, f"{self.local_username}_chats.json")
+            try:
+                with open(local_file, "w") as f:
+                    json.dump(chats, f, indent=4)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save local chats{e}")
+    def create_chat(self, chat_id, title, created_at):
+        if self.is_firebase:
+            try:
+                self.firebase_client.create_chat(chat_id, title, created_at)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to create chat in Firebase{e}")
+        else:
+            chats=self.load_chats()
+            chats[chat_id]={
+                "metadata":{"title":title, "created_at":created_at},
+                "messages":{}
+            }
+            self.save_local_chats(chats)
+    def append_message(self, chat_id, sender, message, timestamp):
+        if self.is_firebase:
+            try:
+                self.firebase_client.append_message(chat_id, sender, message, timestamp)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to create save message in Firebase{e}")
+        else:
+            chats=self.load_chats()
+            if chat_id not in chats:
+                chats[chat_id]={
+                    "metadata":{"title":chat_id, "created_at":timestamp},
+                    "messages":{}
+                }
+            msg_id=f"msg_{int(datetime.datetime.now().timestamp()*1000)}"
+            if "messages" not in chats[chat_id] or not isinstance(chats[chat_id]["messages"], dict):
+                chats[chat_id]["messages"] = {}
+            chats[chat_id]["messages"][msg_id] = {
+                "sender": sender,
+                "message": message,
+                "timestamp": timestamp
+            }
+            self.save_local_chats(chats)
+    def delete_chat(self, chat_id):
+        if self.is_firebase:
+            try:
+                self.firebase_client.delete_chat(chat_id)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete chat from Firebase: {e}")
+        else:
+            chats = self.load_chats()
+            if chat_id in chats:
+                del chats[chat_id]
+                self.save_local_chats(chats)
 
 user_database = load_user_database()
 
